@@ -1,0 +1,4 @@
+.env
+.python-version
+TopicBook.code-workspace
+/__pycache__

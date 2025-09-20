@@ -1,6 +1,7 @@
 import argparse
 from topicbook.search import search_google
 from topicbook.scraper import scrape_website
+from topicbook.ai import generate_structure
 
 def main():
     """
@@ -28,14 +29,24 @@ def main():
         content = scrape_website(url)
         if content:
             all_text_content += content + "\n\n"
-            print(f"-> Successfully scraped and added content.")
+            print("-> Successfully scraped and added content.")
         else:
-            print(f"-> Failed to scrape content.")
-
+            print("-> Failed to scrape content.")
+            
     print(f"\n✅ Total text content scraped: {len(all_text_content)} characters.")
 
-    # --- Future logic will go here ---
     # 3. Structure with AI
+    structure = generate_structure(topic, all_text_content)
+    
+    if not structure:
+        print("Could not generate a structure with the AI. Exiting.")
+        return
+        
+    print("\n--- Generated TopicBook Structure ---")
+    print(structure)
+    print("------------------------------------")
+
+    # --- Future logic will go here ---
     # 4. Curate with AI
     # 5. Generate Markdown file
 

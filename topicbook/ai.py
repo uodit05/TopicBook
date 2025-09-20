@@ -1,88 +1,117 @@
 import os
+import re
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-def generate_structure(topic: str, text_content: str) -> str:
+def plan_research_queries(topic: str, description: str | None) -> list[str]:
     """
-    Uses the Gemini API to generate a structured outline from a block of text.
+    Uses an LLM to generate a list of targeted search queries.
     """
     load_dotenv()
     api_key = os.getenv("GEMINI_API_KEY")
-
     if not api_key:
         raise ValueError("GEMINI_API_KEY not found in .env file")
-        
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-2.5-flash-lite')
+    
+    model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
     prompt = f"""
-    Act as an expert instructional designer. You have been given a large amount of unstructured text
-    scraped from various web pages about the topic: "{topic}".
+    You are a research assistant. Your goal is to generate a list of 3-5 highly targeted Google search queries
+    that will find the best information for a user's request.
 
-    Your task is to analyze all of the text and create a comprehensive, logical, and easy-to-follow
-    table of contents for a guide that will teach this topic to a beginner.
+    The user wants to learn about: "{topic}"
+    Here is their specific description and background: "{description if description else 'No description provided.'}"
 
-    The output should be ONLY the table of contents in Markdown format, with nested sub-topics.
-    Start with an introduction and end with a conclusion.
-    Do not include any other text, greetings, or explanations.
+    Based on this, generate a list of 3-5 concise search queries.
+    The output should be ONLY a Python-style list of strings. For example: ["query 1", "query 2", "query 3"]
+    """
 
-    Here is the raw text:
+    print("-> Planning research queries with AI...")
+    try:
+        response = model.generate_content(prompt)
+        # Use regex to find all strings within quotes
+        queries = re.findall(r'"(.*?)"', response.text)
+        print(f"-> Generated queries: {queries}")
+        # Fallback in case regex fails
+        if not queries:
+            return [topic]
+        return queries
+    except Exception as e:
+        print(f"   - Could not generate search plan. Defaulting to topic. Error: {e}")
+        return [topic]
+
+
+def generate_structure(topic: str, description: str | None, text_content: str) -> str:
+    """
+    Uses the Gemini API to generate a personalized structured outline.
+    """
+    genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+
+    prompt = f"""
+    Act as an expert instructional designer creating a personalized learning plan.
+    The user wants to learn about: "{topic}"
+    Their background and specific request is: "{description if description else 'A general overview.'}"
+
+    Based on the user's request and the provided source text, create a comprehensive, logical table of contents.
+    Tailor the structure to the user's needs (e.g., focus on implementation if they are a developer, 
+    or on theory if they ask for math).
+
+    The output should be ONLY the table of contents in Markdown format.
+    
+    Here is the raw source text:
     ---
     {text_content}
     ---
     """
     
-    print("\n-> Generating structure with AI. This may take a moment...")
-
+    print("\n-> Generating personalized structure with AI...")
     try:
         response = model.generate_content(prompt)
-        print("-> AI structure generated successfully.")
         return response.text
     except Exception as e:
-        print(f"An error occurred while communicating with the Gemini API: {e}")
+        print(f"An error occurred: {e}")
         return ""
 
 
-def generate_final_topicbook(topic: str, structure: str, text_content: str, image_map: dict) -> str:
+def generate_final_topicbook(topic: str, description: str | None, structure: str, text_content: str, image_map: dict) -> str:
     """
-    Uses the Gemini API to write the full content of the TopicBook, with curated links and images.
+    Uses the Gemini API to write the full TopicBook, tailored to the user's description.
     """
     model = genai.GenerativeModel('gemini-1.5-flash-latest')
-
     image_instructions = "\n".join([f"- For section '{title}', use image URL: {url}" for title, url in image_map.items()])
 
     prompt = f"""
-    You are an expert author and educator. Your task is to write a complete, in-depth guide
-    on the topic of "{topic}". You must follow the provided Markdown outline exactly. Use the provided
-    raw source text to write the content.
+    You are an expert author writing a personalized guide for a user.
+    The topic is: "{topic}"
+    The user's specific background and request is: "{description if description else 'A general overview.'}"
 
-    **CRITICAL INSTRUCTIONS FOR LINKS AND CITATIONS:**
-    1.  Your primary goal is to synthesize the information into a seamless guide. You DO NOT need to cite every fact.
-    2.  However, if you find that a specific source (e.g., [SOURCE 1], [SOURCE 2], etc.) contains exceptionally valuable information for a deep-dive, you should add a "further reading" link.
-    3.  When you add a link, you MUST use the real URL provided for that source.
-    4.  The hyperlink MUST be formatted correctly in Markdown. For example:
-        "*(For a deeper dive on this, see: [Title of Article](URL_FROM_THE_SOURCE_LIST))*."
-    
-    **CRITICAL INSTRUCTIONS FOR IMAGES:**
-    1.  When you write a section that has a corresponding image URL, you MUST embed that image using Markdown syntax: `![Generated alt text](image_url_here)`. Generate a concise and relevant alt text.
+    Your task is to write a complete, in-depth guide following the provided Markdown outline.
+    Use the provided source text. Most importantly, **tailor your language, examples, and analogies
+    to the user's described background and goals.** For example, if they are a biologist, use biological analogies.
+    If they want code, provide code snippets.
+
+    CRITICAL INSTRUCTIONS (Links, Images, etc.):
+    1.  Follow the provided outline exactly.
+    2.  If a source URL contains exceptionally valuable information for a deep-dive, add a "further reading" link like: "*(For a deeper dive, see: [Article Title](URL))*". You MUST use the real URL from the source list.
+    3.  Embed provided images using Markdown: `![Generated alt text](image_url_here)`.
 
     ---
-    HERE IS THE EXACT MARKDOWN OUTLINE YOU MUST FOLLOW:
+    HERE IS THE EXACT MARKDOWN OUTLINE TO FOLLOW:
     {structure}
     ---
-    HERE IS THE RAW SOURCE TEXT. EACH SOURCE IS CLEARLY LABELED (e.g., [SOURCE 1]):
+    HERE IS THE RAW SOURCE TEXT (EACH SOURCE IS LABELED):
     {text_content} 
     ---
-    HERE ARE THE IMAGE URLS TO USE FOR SPECIFIC SECTIONS:
+    HERE ARE THE IMAGE URLS FOR SPECIFIC SECTIONS:
     {image_instructions}
     ---
     """
-    print("\n-> Writing the full TopicBook with AI, including images and real links...")
 
+    print("\n-> Writing the full personalized TopicBook with AI...")
     try:
         response = model.generate_content(prompt)
-        print("-> TopicBook content generated successfully.")
         return response.text.strip()
     except Exception as e:
-        print(f"An error occurred while generating the final content: {e}")
+        print(f"An error occurred: {e}")
         return ""

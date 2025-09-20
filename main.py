@@ -1,64 +1,77 @@
-# main.py
 import argparse
 import re
 import os
+import json 
 
 from topicbook.search import search_google
 from topicbook.scraper import scrape_website
-from topicbook.youtube import search_youtube_and_get_transcripts # <-- New import
+from topicbook.youtube import search_youtube_and_get_transcripts
+from topicbook.image_search import find_image_for_query 
 from topicbook.ai import generate_structure, generate_final_topicbook
 
+
 def main():
-    """
-    Main function to run the TopicBook generation process.
-    """
     parser = argparse.ArgumentParser(description="Generate a TopicBook for a given topic.")
     parser.add_argument("topic", type=str, help="The topic you want to learn about.")
-    # We will add the --description argument later when we build the full agent logic
     args = parser.parse_args()
     topic = args.topic
     
     print(f"🚀 Starting TopicBook generation for: '{topic}'")
     
-    # 1. Search web pages
+    # 1 & 2. Search and Scrape Web & YouTube
+    source_data = []
     urls = search_google(query=topic)
-    if not urls:
-        print("Could not find any relevant web links.")
-        # We don't exit here, as we might still find videos
-    
-    # 2. Scrape web pages
-    all_text_content = ""
     if urls:
         for i, url in enumerate(urls):
             print(f"\n[{i+1}/{len(urls)}] Scraping URL: {url}")
             content = scrape_website(url)
             if content:
-                all_text_content += content + "\n\n"
-    
-    # 3. Search and scrape YouTube transcripts
-    transcript_content = search_youtube_and_get_transcripts(query=topic)
-    all_text_content += transcript_content
+                source_data.append({"url": url, "content": content})
 
-    if not all_text_content:
-        print("Could not gather any content from the web or YouTube. Exiting.")
+    transcript_content, transcript_urls = search_youtube_and_get_transcripts(query=topic)
+    # Add each transcript as its own source
+    if transcript_urls:
+        # Assuming one block of text for all for now, but associating with all URLs
+        # A more advanced version could split this
+        combined_transcript_content = " ".join(transcript_content.split())
+        source_data.append({"url": ", ".join(transcript_urls), "content": combined_transcript_content})
+
+    if not source_data:
+        print("Could not gather any content. Exiting.")
         return
+    
+    # NEW: Format source data as a clearly labeled string for the AI
+    source_text_for_ai = ""
+    for i, source in enumerate(source_data):
+        source_text_for_ai += f"[SOURCE {i+1}]: URL = {source['url']}\n"
+        source_text_for_ai += f"CONTENT: {source['content']}\n\n"
             
-    print(f"\n✅ Total text content gathered: {len(all_text_content)} characters.")
+    print(f"\n✅ Total text content gathered.")
 
-    # 4. Structure with AI
-    structure = generate_structure(topic, all_text_content)
+    # 3. Structure with AI
+    structure = generate_structure(topic, source_text_for_ai)
     if not structure:
-        print("Could not generate a structure with the AI. Exiting.")
+        print("Could not generate a structure. Exiting.")
         return
         
-    print("\n--- Generated TopicBook Structure ---")
-    print(structure)
-    print("------------------------------------")
+    print("\n--- Generated TopicBook Structure --- \n" + structure)
+
+    # 4. Image Search
+    print("\n-> Searching for relevant images for each section...")
+    section_titles = [line for line in structure.split('\n') if line.strip().startswith('#')]
+    image_map = {}
+    for title in section_titles:
+        clean_title = re.sub(r'^\W*\d+\.?\d*\s*', '', title).strip()
+        if len(clean_title) > 5:
+             image_url = find_image_for_query(f"{clean_title} diagram illustration")
+             if image_url:
+                 image_map[title] = image_url
+                 print(f"   - Found image for: {clean_title}")
 
     # 5. Generate the final book content
-    final_content = generate_final_topicbook(topic, structure, all_text_content)
+    final_content = generate_final_topicbook(topic, structure, source_text_for_ai, image_map)
     if not final_content:
-        print("Could not generate the final content with the AI. Exiting.")
+        print("Could not generate the final content. Exiting.")
         return
 
     # 6. Save the final book to a file

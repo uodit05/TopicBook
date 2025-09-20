@@ -1,5 +1,6 @@
 import argparse
 from topicbook.search import search_google
+from topicbook.scraper import scrape_website
 
 def main():
     """
@@ -20,12 +21,20 @@ def main():
         print("Could not find any relevant links. Exiting.")
         return
         
-    print("\nHere are the links we found:")
-    for url in urls:
-        print(f"- {url}")
+    # 2. Scrape content from each URL
+    all_text_content = ""
+    for i, url in enumerate(urls):
+        print(f"\n[{i+1}/{len(urls)}] Scraping URL: {url}")
+        content = scrape_website(url)
+        if content:
+            all_text_content += content + "\n\n"
+            print(f"-> Successfully scraped and added content.")
+        else:
+            print(f"-> Failed to scrape content.")
+
+    print(f"\n✅ Total text content scraped: {len(all_text_content)} characters.")
 
     # --- Future logic will go here ---
-    # 2. Scrape content
     # 3. Structure with AI
     # 4. Curate with AI
     # 5. Generate Markdown file

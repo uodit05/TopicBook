@@ -166,6 +166,9 @@ chmod +x start.sh
 ```
 
 This will launch all three services. You can now access:
+
 The TopicBook Web App: http://localhost:5173
+
 The Backend API Docs: http://localhost:8000/docs
+
 To stop all services, press Ctrl+C in the terminal where start.sh is running.

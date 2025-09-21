@@ -2,6 +2,7 @@
 
 An intelligent, AI-powered learning assistant that generates personalized, media-rich learning guides on any topic.
 
+<img src="Topic_Book-ss.png" alt="screenshot of the project">
 
 ---
 ## About The Project

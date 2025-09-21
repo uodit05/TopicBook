@@ -1,5 +1,7 @@
-.env
-.python-version
 TopicBook.code-workspace
-/__pycache__
-/Generated-Books
+__pycache__
+backend/.env
+backend/.python-version
+backend/__pycache__
+backend/Generated-Books
+backend/topicbook/__pycache__

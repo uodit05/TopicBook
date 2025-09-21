@@ -7,9 +7,8 @@ from topicbook.search import search_google
 from topicbook.scraper import scrape_website
 from topicbook.youtube import search_youtube_and_get_transcripts
 from topicbook.image_search import find_image_for_query
-from topicbook.ai import plan_research_queries, generate_structure, generate_final_topicbook
+from topicbook.ai import plan_research_queries, generate_structure, generate_final_topicbook, generate_image_search_query
 
-# Configure Celery
 celery_app = Celery(
     'tasks',
     broker='redis://localhost:6379/0',
@@ -22,25 +21,20 @@ def generate_topicbook_task(self, topic: str, description: str | None):
     The main Celery task that runs the entire TopicBook generation pipeline.
     """
     def update_status(message):
-        """Helper function to print and update Celery task state."""
         print(message)
         self.update_state(state='PROGRESS', meta={'status': message})
 
+    # steps 1, 2, and 3 for Research and Structuring
     update_status(f"🚀 Starting TopicBook generation for: '{topic}'")
     if description:
         update_status(f"   User context: '{description}'")
 
-    # 1. Plan Research
     search_queries = plan_research_queries(topic, description)
-    if not search_queries:
-        update_status("Could not generate search plan. Exiting.")
-        return {"status": "FAILURE", "error": "Could not generate search plan."}
-
-    # 2. Execute Research
+    
     source_data = []
     for query in search_queries:
         update_status(f"\n--- Executing search: \"{query}\" ---")
-        urls = search_google(query=query, num_results=3)
+        urls = search_google(query=query, num_results=5)
         if urls:
             for url in urls:
                 update_status(f"-> Scraping URL: {url}")
@@ -48,7 +42,7 @@ def generate_topicbook_task(self, topic: str, description: str | None):
                 if content:
                     source_data.append({"url": url, "content": content})
         
-        transcript_content, transcript_urls = search_youtube_and_get_transcripts(query=query, max_results=2)
+        transcript_content, transcript_urls = search_youtube_and_get_transcripts(query=query, max_results=3)
         if transcript_urls:
             source_data.append({"url": ", ".join(transcript_urls), "content": transcript_content})
 
@@ -61,21 +55,25 @@ def generate_topicbook_task(self, topic: str, description: str | None):
         source_text_for_ai += f"[SOURCE {i+1}]: URL = {source['url']}\nCONTENT: {source['content']}\n\n"
     update_status("✅ Total research content gathered.")
 
-    # 3. Structure with AI
     structure = generate_structure(topic, description, source_text_for_ai)
     if not structure:
         update_status("Could not generate a structure. Exiting.")
         return {"status": "FAILURE", "error": "Could not generate structure."}
     update_status("--- Generated Personalized Structure --- \n" + structure)
 
-    # 4. Image Search
-    update_status("-> Searching for relevant images...")
+    # 4. AI-Powered Image Search 
+    update_status("-> Planning and searching for relevant images...")
     section_titles = [line for line in structure.split('\n') if line.strip().startswith('#')]
     image_map = {}
     for title in section_titles:
         clean_title = re.sub(r'^\W*\d+\.?\d*\s*', '', title).strip()
         if len(clean_title) > 5:
-            image_url = find_image_for_query(f"{clean_title} diagram illustration")
+            # Step 4a: AI generates a better search query
+            image_query = generate_image_search_query(topic, title)
+            update_status(f"   - AI generated image query: '{image_query}'")
+             
+            # Step 4b: Execute the smarter search
+            image_url = find_image_for_query(image_query)
             if image_url:
                 image_map[title] = image_url
                 update_status(f"   - Found image for: {clean_title}")

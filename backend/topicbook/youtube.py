@@ -63,7 +63,7 @@ def search_youtube_and_get_transcripts(query: str, max_results: int = 5):
             print(f"   - An error occurred while fetching transcript for video ID {video['id']}: {e}")
             continue
         finally:
-            # Added a 2-second delay to be respectful to the API
-            time.sleep(2)
+            # Added a 1-second delay to be respectful to the API
+            time.sleep(1)
             
     return all_transcripts, processed_urls

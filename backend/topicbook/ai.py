@@ -82,14 +82,14 @@ def generate_final_topicbook(topic: str, description: str | None, structure: str
     image_instructions = "\n".join([f"- For section '{title}', use image URL: {url}" for title, url in image_map.items()])
 
     prompt = f"""
-    You are an expert author writing a personalized guide for a user.
+    You are an expert author writing a personalized notes-taking book guide for a user.
     The topic is: "{topic}"
-    The user's specific background and request is: "{description if description else 'A general overview.'}"
+    The user has described that his specific background and request is for the specific topic is: "{description if description else 'A general overview.'}"
 
     Your task is to write a complete, in-depth guide following the provided Markdown outline.
     Use the provided source text. Most importantly, **tailor your language, examples, and analogies
     to the user's described background and goals.** For example, if they are a biologist, use biological analogies.
-    If they want code, provide code snippets.
+    If they want code, provide code snippets, if they want math realated, explain in-depth with math, if they need research related, explain in-depth of everythin.
 
     CRITICAL INSTRUCTIONS (Links, Images, etc.):
     1.  Follow the provided outline exactly.
@@ -115,3 +115,28 @@ def generate_final_topicbook(topic: str, description: str | None, structure: str
     except Exception as e:
         print(f"An error occurred: {e}")
         return ""
+    
+def generate_image_search_query(topic: str, section_title: str) -> str:
+    """
+    Uses an LLM to generate a highly descriptive image search query.
+    """
+    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+
+    # Clean the section title to remove markdown hashes and numbers
+    clean_title = re.sub(r'^\W*\d+\.?\d*\s*', '', section_title).strip()
+
+    prompt = f"""
+    You are a research assistant. Your task is to generate one, single, highly descriptive Google Image search query
+    to find the best possible diagram, illustration, or photo for the sub-topic: "{clean_title}"
+    within the main topic of "{topic}".
+
+    The query should be optimized to find educational and clear images.
+    Return ONLY the single search query string and nothing else. Do not add quotes.
+    """
+
+    try:
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        print(f"   - Could not generate image query. Defaulting to section title. Error: {e}")
+        return f"{clean_title} diagram illustration"

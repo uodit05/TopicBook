@@ -5,3 +5,5 @@ backend/.python-version
 backend/__pycache__
 backend/Generated-Books
 backend/topicbook/__pycache__
+
+frontend
